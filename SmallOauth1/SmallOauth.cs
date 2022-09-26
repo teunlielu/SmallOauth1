@@ -59,9 +59,13 @@ namespace SmallOauth1
 			{
 				signature = GetRSASignature(signatureBaseString, _config.SigningKey);
 			}
-			else
+			else if (_config.SignatureMethod.ToUpper().Contains("HMAC-SHA256"))
 			{
-				signature = GetSignature(signatureBaseString, _config.ConsumerSecret, requestTokenSecret);
+				signature = GetSignatureHMACSHA256(signatureBaseString, _config.ConsumerSecret, accessTokenSecret);
+			}
+			 else
+			 {
+				signature = GetSignature(signatureBaseString, _config.ConsumerSecret, accessTokenSecret);
 			}
 
 			var responseText = await PostData(_config.AccessTokenUrl, $"{ConcatList(requestParameters, "&")}&oauth_signature={Uri.EscapeDataString(signature)}");
@@ -175,8 +179,12 @@ namespace SmallOauth1
 			{
 				signature = GetRSASignature(signatureBaseString, _config.SigningKey);
 			}
-			else
+			else if (_config.SignatureMethod.ToUpper().Contains("HMAC-SHA256"))
 			{
+				signature = GetSignatureHMACSHA256(signatureBaseString, _config.ConsumerSecret, accessTokenSecret);
+			}
+			 else
+			 {
 				signature = GetSignature(signatureBaseString, _config.ConsumerSecret, accessTokenSecret);
 			}
 
@@ -243,9 +251,13 @@ namespace SmallOauth1
 			{
 				signature = GetRSASignature(signatureBaseString, _config.SigningKey);
 			}
-			else
+			else if (_config.SignatureMethod.ToUpper().Contains("HMAC-SHA256"))
 			{
-				signature = GetSignature(signatureBaseString, _config.ConsumerSecret);
+				signature = GetSignatureHMACSHA256(signatureBaseString, _config.ConsumerSecret, accessTokenSecret);
+			}
+			 else
+			 {
+				signature = GetSignature(signatureBaseString, _config.ConsumerSecret, accessTokenSecret);
 			}
 
 			// 6.1.2.Service Provider Issues an Unauthorized Request Token
@@ -418,6 +430,37 @@ namespace SmallOauth1
 			// String signature = CryptographicBuffer.EncodeToBase64String(signatureBuffer);
 			// return signature;
 		}
+		
+	private string GetSignatureHMACSHA256(string signatureBaseString, string consumerSecret, string tokenSecret = null)
+        {
+            /*9.2.  HMAC-SHA256
+
+			The HMAC-SHA1 signature method uses the HMAC-SHA256 signature algorithm as defined in [RFC2104] where the Signature Base String is the text and the key is the concatenated values (each first encoded per Parameter Encoding) of the Consumer Secret and Token Secret, separated by an '&' character (ASCII code 38) even if empty.
+			*/
+
+            var hmacsha256 = new HMACSHA256();
+
+            var key = Uri.EscapeDataString(consumerSecret) + "&" + (string.IsNullOrEmpty(tokenSecret)
+                          ? ""
+                          : Uri.EscapeDataString(tokenSecret));
+            hmacsha256.Key = Encoding.ASCII.GetBytes(key);
+
+            var dataBuffer = Encoding.ASCII.GetBytes(signatureBaseString);
+            var hashBytes = hmacsha256.ComputeHash(dataBuffer);
+
+            return Convert.ToBase64String(hashBytes);
+
+            // .NET Core implementation
+            // var signingKey = string.Format("{0}&{1}", consumerSecret, !string.IsNullOrEmpty(requestTokenSecret) ? requestTokenSecret : "");
+            // IBuffer keyMaterial = CryptographicBuffer.ConvertStringToBinary(signingKey, BinaryStringEncoding.Utf8);
+            // MacAlgorithmProvider hmacSha1Provider = MacAlgorithmProvider.OpenAlgorithm("HMAC_SHA1");
+            // CryptographicKey macKey = hmacSha1Provider.CreateKey(keyMaterial);
+            // IBuffer dataToBeSigned = CryptographicBuffer.ConvertStringToBinary(signatureBaseString, BinaryStringEncoding.Utf8);
+            // IBuffer signatureBuffer = CryptographicEngine.Sign(macKey, dataToBeSigned);
+            // String signature = CryptographicBuffer.EncodeToBase64String(signatureBuffer);
+            // return signature;
+        }
+
 
 		private static string ConcatList(IEnumerable<string> source, string separator)
 		{
